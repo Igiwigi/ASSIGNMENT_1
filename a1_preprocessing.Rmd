@@ -73,8 +73,17 @@ If you have created a Rstudio project for this assignment, the working directory
 
 ```{r setup}
 ### Write your code here
-
-
+library(cmdstanr)
+library(posterior)
+library(bayesplot)
+color_scheme_set("brightblue")
+library(brms)
+getwd()
+library(dplyr)
+library(ggplot2)
+library(janitor)
+library(tidyverse)
+    
 ```
 
 Load the following three data sets, after downloading them from dropbox and saving them in your working directory:
@@ -85,7 +94,9 @@ Load the following three data sets, after downloading them from dropbox and savi
 
 ```{r import_datasets, message = FALSE}
 ### Write your code here
-
+participants <- read.csv("data/demo_train.csv")
+LU <- read.csv("data/LU_train.csv")
+W_data <- read.csv("data/token_train.csv")
 
 ```
 
@@ -96,6 +107,16 @@ Using various visualisation and aggregation procedures, explore these data sets 
 
 Given this, it is important to make sure that all the relevant variables are identical in both name, type, and possible values.
 
+```{r}
+#visualizations
+glimpse(LU)
+#change VISIT to visit and cut visit and . out of the string, remove X column
+glimpse(participants)
+#nothing
+glimpse(W_data)
+#cut X column, change VISIT to visit, cut Visit and . out of the string
+```
+ 
 **1. Renaming variables**
 
 The first task thus consists in identifying which variable names are spelled differently and rename them accordingly.
@@ -112,6 +133,29 @@ Many different procedures can be used here, and unless you have to deal with gig
 
 ```{r rename_variables}
 ### Write your code here
+#using mutate
+# mutate(Comparison = gsub("1", "positive", Comparison)) %>%
+
+#Fixing LU, wrong name and wrong shit in visit
+names(LU)[names(LU) == "VISIT"] <- "Visit"
+names(LU)[names(LU) == "SUBJ"] <- "Child.ID"
+
+LU <- LU %>%
+    mutate(Visit = gsub("visit", "", Visit)) %>%
+    mutate(Visit = gsub("Visit", "", Visit)) %>%
+    mutate(Visit = gsub("\\.", "", Visit))
+
+W_data <- subset(W_data, select = -X)
+names(W_data)[names(W_data) == "VISIT"] <- "Visit"
+names(W_data)[names(W_data) == "SUBJ"] <- "Child.ID"
+
+
+W_data <- W_data %>%
+    mutate(Visit = gsub("visit", "", Visit)) %>%
+    mutate(Visit = gsub("Visit", "", Visit)) %>%
+    mutate(Visit = gsub("\\.", "", Visit))
+
+
 
 
 ```
@@ -123,8 +167,17 @@ Find a way to homogenize the way "visit" is reported amongst the different datas
 
 ```{r extract_digits}
 ### Write your code here
+names(LU)[names(LU) == "VISIT"] <- "Visit"
+LU <- LU %>%
+    mutate(Visit = gsub("visit", "", Visit)) %>%
+    mutate(Visit = gsub("Visit", "", Visit)) %>%
+    mutate(Visit = gsub("\\.", "", Visit))
 
-
+names(W_data)[names(W_data) == "VISIT"] <- "Visit"
+W_data <- W_data %>%
+    mutate(Visit = gsub("visit", "", Visit)) %>%
+    mutate(Visit = gsub("Visit", "", Visit)) %>%
+    mutate(Visit = gsub("\\.", "", Visit))
 ```
 
 A similar task needs to be done regarding the value names of the Child.ID variable in the demographic data set. The values of this variable that are not abbreviated do not end with "." (i.e. Adam), whereas they do in the other two data sets (i.e. Adam.). Key merges, that is, merging of data sets based on shared variables, can only be done is the latter have overlapping value names; if no identical value names can be found, nothing will be merged. In the present case, a simple way to ensure this consists in removing all points from the values of the corresponding variables. The package **stringr** can again be of help here, notably the function **str_replace_all()**.
@@ -134,7 +187,11 @@ A similar task needs to be done regarding the value names of the Child.ID variab
 
 ```{r remove_points}
 ### Write your code here
-
+#ADDING A . TO THE END OF EACH NAME
+participants <- participants %>%
+    mutate(Child.ID = gsub("(?<!\\.)$", ".", Child.ID, perl = TRUE))
+#looking for a match at the end of the string, to see if there is already a ., if not, adds it ?<! \\. $
+#from ChatGPT
 
 ```
 
@@ -176,9 +233,48 @@ Feel free to rename the variables into something you think is more intuitive (i.
 
 ```{r rename_selected_variables}
 ### Write your code here
+#joining dataframes
+final <- inner_join(LU,W_data)
 
+#making them both integer to join
+final$Visit <- as.integer(final$Visit)
+participants$Visit <- as.integer(participants$Visit)
+
+final <- inner_join(final, participants)
+
+typeof(participants$Visit)
+typeof(final$Visit)
+```
+
+```{r}
+#removing the useless or only keeping the useful
+df <- final %>%
+    select(Child.ID, Visit,Diagnosis, Ethnicity, Gender, Age, ADOS, MullenRaw, ExpressiveLangRaw, Socialization, MOT_MLU, CHI_MLU, types_MOT, types_CHI, tokens_MOT, tokens_CHI)
+
+#renaming to be more understandable, after merging
+names(df)[names(df) == "ExpressiveLangRaw"] <- "Verbal_IQ"
+names(df)[names(df) == "MullenRaw"] <- "NonVerbal_IQ"
 
 ```
+
+* Child.ID, 
+* Visit, 
+* Diagnosis, 
+* Ethnicity, 
+* Gender, 
+* Age, 
+
+* ADOS,  
+* MullenRaw, 
+* ExpressiveLangRaw, 
+* Socialization
+* MOT_MLU, 
+* CHI_MLU, 
+* types_MOT, 
+* types_CHI, 
+* tokens_MOT, 
+* tokens_CHI.
+
 
 **5. Data merge**
 
@@ -192,6 +288,7 @@ It is important here to check if merging the data sets:
 ```{r merge_data}
 ### Write your code here
 
+#they have been merged already
 
 ```
 
@@ -205,21 +302,44 @@ A possible way to do so:
 * rename the clinical variables in a way that clearly indicates they relate to the first visit (e.g. *ADOS* to *ADOS1*)
 * merge the new data set with the old
 
-
+only reporting the scores from visit 1! in *ADOS* *Non_VerbalIQ* *Verbal_IQ* *Socialization*, alongside *Child.ID*, *Visit*, *Gender*
 ```{r add_first_visit_variables}
 ### Write your code here
 
+#selecting the needed columns
+first <- df %>%
+    select(Child.ID, Visit, ADOS, NonVerbal_IQ, Verbal_IQ, Socialization, Gender, Diagnosis, Ethnicity, Age )
 
-  
+#useless now
+initial_values <- first %>%
+  group_by(Child.ID) %>%
+  filter(Visit == 1) 
+
+
+#changing all parameter values to visit 1 parameter values
+first_values <- first %>%
+  group_by(Child.ID) %>%
+  mutate(
+    ADOS = ADOS[Visit == 1],
+    NonVerbal_IQ = NonVerbal_IQ[Visit == 1],
+    Verbal_IQ = Verbal_IQ[Visit == 1],
+    Socialization = Socialization[Visit == 1]
+  )
+
+#just for convenience, but way too many variables
+cleaned <- first_values
+
 ```
 
 **7. Reverse Encoding**
 
-An important part of data cleaning is making sure both variable names and value allow for easy and intuitive analysis and interpretation. For example, the different values for the categorical variable *gender* have been encoded to '1' and '2', but these numbers are useless to anyone who doesn't have the proper encoding dictionary, which maps each number to the corresponding category, namely 'male' or 'female'. In the following code chunk, resolve this ambiguity by reversing the encoding of the gender variable, so that 1 and 2 are changed to F and M respectively. In the same vein, transform the 'Diagnosis' variable so that 'A's and 'B's are reverted back to ASD (Autism Spectrum Disorder) and TD (typically developing) respectively.
+An important part of data cleaning is making sure both variable names and value allow for easy and intuitive analysis and interpretation. For example, the different values for the categorical variable *gender* have been encoded to '1' and '2', but these numbers are useless to anyone who doesn't have the proper encoding dictionary, which maps each number to the corresponding category, namely 'male' or 'female'. In the following code chunk, resolve this ambiguity by reversing the encoding of the gender variable, so that 1 and 2 are changed to M and F respectively. In the same vein, transform the 'Diagnosis' variable so that 'A's and 'B's are reverted back to ASD (Autism Spectrum Disorder) and TD (typically developing) respectively.
 
 ```{r revert_encoding}
-### Write your code here
-
+#revert them to Gender 1=M, 2=F and Diagnosis A=ASD, B=TD
+cleaned <- cleaned %>%
+    mutate(Gender = ifelse(Gender == 1, "M", "F")) %>%
+    mutate(Diagnosis = ifelse(Diagnosis == "A", "ASD", "TD"))
 
 ```
 
