@@ -309,13 +309,8 @@ only reporting the scores from visit 1! in *ADOS* *Non_VerbalIQ* *Verbal_IQ* *So
 ```{r add_first_visit_variables}
 ### Write your code here
 
-#selecting the needed columns
-first <- df %>%
-    select(Child.ID, Visit, ADOS, NonVerbal_IQ, Verbal_IQ, Socialization, Gender, Diagnosis, Ethnicity, Age )
-
-
 #changing all parameter values to visit 1 parameter values
-first_values <- first %>%
+first_values <- df %>%
   group_by(Child.ID) %>%
   mutate(
     ADOS = ADOS[Visit == 1],
