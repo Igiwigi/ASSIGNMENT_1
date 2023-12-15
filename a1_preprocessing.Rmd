@@ -2,25 +2,14 @@
 title: "Assignment 1 (A1): Git Hub Configuration and Data Cleaning"
 subtitle: 'Instructions'
 output:
-  html_document:
-      toc: yes
-      number_sections: no
-      toc_float: yes
-      theme: united
-      highlight: espresso
-      css: '../../varia/standard.css'
+  pdf_document:
+    toc: yes
+    number_sections: yes
+    highlight: espresso
+    fig_caption: yes
 geometry: margin=1in
-knit: (function(inputFile, encoding) {
-  browseURL(
-    rmarkdown::render(
-      inputFile,
-      encoding = encoding,
-      output_dir = 'documents/assignments/solutions',
-      output_file = "a1_preprocessing.html"))})
-bibliography: '../../varia/bibliography.bib'
+bibliography: 'data/knitting/bibliography.bib'
 ---
-**testing**
-
 The objective of this warm-up assignment is to brush up your programming and data wrangling skills as well as to introduce you to the data set you will be working on in Assignment 1. More precisely, you will here be asked here to do the following:
 
 1. Introduction to version control
@@ -71,19 +60,21 @@ Your job in this assignment is to double-check the data and make it analysis-rea
 
 If you have created a Rstudio project for this assignment, the working directory for this assignment (the default path for any function, procedure or command that works on files) is the project directory. If you have decided otherwise, first make sure that you set your working directory to the path of the current RMarkdown file. You can also use the following code chunk to install and/or load the packages you will need for the tasks below.
 
-```{r setup}
-### Write your code here
-library(cmdstanr)
-library(posterior)
-library(bayesplot)
-color_scheme_set("brightblue")
-library(brms)
+```{r setup, echo = F, include = F}
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  #cmdstanr, not available for this version of R
+  posterior,
+  bayesplot,
+  brms,
+  dplyr,
+  ggplot2,
+  janitor,
+  tidyverse,
+  BiocManager
+)
 getwd()
-library(dplyr)
-library(ggplot2)
-library(janitor)
-library(tidyverse)
-    
+color_scheme_set("brightblue")    
 ```
 
 Load the following three data sets, after downloading them from dropbox and saving them in your working directory:
@@ -93,7 +84,6 @@ Load the following three data sets, after downloading them from dropbox and savi
 - [Word data](https://www.dropbox.com/scl/fi/h4dop19ctdubhokbfsn2q/token_train.csv?rlkey=wffzcf1211bglrx8239g3e0h8&dl=0)
 
 ```{r import_datasets, message = FALSE}
-### Write your code here
 participants <- read.csv("data/demo_train.csv")
 LU <- read.csv("data/LU_train.csv")
 W_data <- read.csv("data/token_train.csv")
@@ -107,7 +97,7 @@ Using various visualisation and aggregation procedures, explore these data sets 
 
 Given this, it is important to make sure that all the relevant variables are identical in both name, type, and possible values.
 
-```{r}
+```{r inspecting}
 #visualizations
 glimpse(LU)
 #change VISIT to visit and cut visit and . out of the string, remove X column
@@ -132,9 +122,6 @@ Many different procedures can be used here, and unless you have to deal with gig
 
 
 ```{r rename_variables}
-### Write your code here
-#using mutate
-
 #Fixing LU (wrong visit name, wrong child.id name) and W_data (useless column, wrong visit and child.id name)
 names(LU)[names(LU) == "VISIT"] <- "Visit"
 names(LU)[names(LU) == "SUBJ"] <- "Child.ID"
@@ -185,7 +172,6 @@ A similar task needs to be done regarding the value names of the Child.ID variab
 
 
 ```{r remove_points}
-### Write your code here
 #Adding a . to the end of each name, unless there already is one
 participants <- participants %>%
     mutate(Child.ID = gsub("(?<!\\.)$", ".", Child.ID, perl = TRUE))
@@ -233,7 +219,6 @@ Most variables names should make sense, that is, should be straightforward as re
 Feel free to rename the variables into something you think is more intuitive (i.e. *nonVerbalIQ*, *verbalIQ*)
 
 ```{r rename_selected_variables}
-### Write your code here
 #joining dataframes
 final <- inner_join(LU,W_data)
 
@@ -247,17 +232,14 @@ final <- inner_join(final, participants)
 #checking types
 typeof(participants$Visit)
 typeof(final$Visit)
-```
 
-```{r}
 #removing the useless or only keeping the useful
-df <- final %>%
+final_df <- final %>%
     select(Child.ID, Visit,Diagnosis, Ethnicity, Gender, Age, ADOS, MullenRaw, ExpressiveLangRaw, Socialization, MOT_MLU, CHI_MLU, types_MOT, types_CHI, tokens_MOT, tokens_CHI)
 
 #renaming to be more understandable, after merging
-names(df)[names(df) == "ExpressiveLangRaw"] <- "Verbal_IQ"
-names(df)[names(df) == "MullenRaw"] <- "NonVerbal_IQ"
-
+names(final_df)[names(final_df) == "ExpressiveLangRaw"] <- "Verbal_IQ"
+names(final_df)[names(final_df) == "MullenRaw"] <- "NonVerbal_IQ"
 ```
 
 * Child.ID, 
@@ -268,8 +250,8 @@ names(df)[names(df) == "MullenRaw"] <- "NonVerbal_IQ"
 * Age, 
 
 * ADOS,  
-* MullenRaw, 
-* ExpressiveLangRaw, 
+* MullenRaw, --> "NonVerbal_IQ"
+* ExpressiveLangRaw, --> "Verbal_IQ"
 * Socialization
 * MOT_MLU, 
 * CHI_MLU, 
@@ -289,10 +271,7 @@ It is important here to check if merging the data sets:
 - has resulted in the creation of NAs within the merged data set. If this is so, it is important to understand why these NAs were created (e.g. some measures were not taken at all visits, some recordings were lost or permission to use was withdrawn).
 
 ```{r merge_data}
-### Write your code here
-
-#they have been merged already
-
+#they have been merged already --> final_df
 ```
 
 **6. Data filtering**
@@ -307,10 +286,8 @@ A possible way to do so:
 
 only reporting the scores from visit 1! in *ADOS* *Non_VerbalIQ* *Verbal_IQ* *Socialization*, alongside *Child.ID*, *Visit*, *Gender*
 ```{r add_first_visit_variables}
-### Write your code here
-
 #changing all parameter values to visit 1 parameter values
-first_values <- df %>%
+first_values <- final_df %>%
   group_by(Child.ID) %>%
   mutate(
     ADOS = ADOS[Visit == 1],
@@ -341,7 +318,6 @@ cleaned <- cleaned %>%
 Finally, save the cleaned data in Comma-Separated Values (CSV) format, under a name and at a location of your own choosing.
 
 ```{r save_changes}
-### Write your code here
 write.csv(cleaned, file = 'data/cleaned-IngridB.csv', row.names = FALSE)
 
 
